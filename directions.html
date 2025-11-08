@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ONBOARDING GAME — Matrix Pad</title>
+  <style>
+    :root{
+      --bg:#000;
+      --matrix:#0f0;
+      --outline:rgba(255,255,255,.15);
+      --glass:rgba(255,255,255,.06);
+      --text:#e8ffe8;
+      --ok:#11d36e;
+      --error:#ff3b30;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:#000;
+      color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans";
+      overflow:hidden;
+    }
+
+    /* Matrix background */
+    #matrix-canvas{
+      position:fixed; inset:0; z-index:0; display:block;
+      background:radial-gradient(ellipse at center, #001100 0%, #000 60%, #000 100%);
+    }
+
+    .overlay{
+      position:relative; z-index:1; height:100%;
+      display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+      gap:min(3vh,24px); padding:clamp(12px,3vh,24px);
+    }
+
+    h1{
+      margin:clamp(8px,1.8vh,16px) 0 0 0;
+      font-size:clamp(26px,8vw,58px);
+      font-weight:900; letter-spacing:.06em; text-transform:uppercase; text-align:center;
+      text-shadow:0 0 14px rgba(20,255,114,.25), 0 0 3px rgba(20,255,114,.8);
+    }
+
+    .panel{
+      width:min(92vw,540px);
+      display:flex; flex-direction:column; align-items:center; gap:clamp(12px,2.5vh,20px);
+      padding:clamp(12px,3vh,22px);
+      background:linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.55));
+      border:1px solid var(--outline); border-radius:24px;
+      box-shadow:0 8px 40px rgba(0,0,0,.6), inset 0 0 0 1px rgba(20,255,114,.08);
+      backdrop-filter:blur(6px);
+    }
+
+    /* Display of entered sequence */
+    .display{
+      display:flex; gap:12px; align-items:center; justify-content:center; min-height:68px;
+    }
+    .slot{
+      width:clamp(56px,18vw,92px);
+      height:clamp(56px,18vw,92px);
+      border-radius:16px; border:2px solid var(--outline); background:var(--glass);
+      display:grid; place-items:center;
+      font-weight:900; font-size:clamp(26px,8vw,42px);
+      box-shadow:inset 0 0 18px rgba(0,0,0,.45);
+      user-select:none;
+    }
+    .slot.filled{border-color:rgba(20,255,114,.35)}
+    .arrow{filter:drop-shadow(0 0 6px rgba(20,255,114,.35));}
+
+    .status{
+      min-height:1.8em; font-size:clamp(18px,5.5vw,28px); font-weight:900; letter-spacing:.04em; text-align:center;
+    }
+    .status.ok{color:var(--ok); text-shadow:0 0 12px rgba(17,211,110,.45)}
+    .status.err{color:var(--error); text-shadow:0 0 10px rgba(255,59,48,.45)}
+
+    /* Compass pad */
+    .pad{
+      width:100%; max-width:540px; aspect-ratio:1/1;
+      display:grid; gap:clamp(10px,2.8vw,16px);
+      grid-template-columns:repeat(3,1fr);
+      grid-template-rows:repeat(3,1fr);
+      touch-action:manipulation;
+    }
+    .key{
+      border-radius:18px; border:1px solid var(--outline);
+      background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      box-shadow:0 10px 24px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.06);
+      display:grid; place-items:center; user-select:none; -webkit-tap-highlight-color:transparent;
+      font-size:clamp(26px,8vw,38px); font-weight:900; color:var(--text);
+      transition:transform .06s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .key:active{
+      transform:translateY(1px) scale(.99);
+      box-shadow:0 6px 14px rgba(0,0,0,.35), inset 0 0 0 1px rgba(20,255,114,.12);
+      border-color:rgba(20,255,114,.28);
+      background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05));
+    }
+    .key.action{font-size:clamp(14px,4.2vw,16px); letter-spacing:.04em; font-weight:700; opacity:.95}
+
+    /* Layout: arrows */
+    .spacer{pointer-events:none; opacity:.25}
+    .up   {grid-area:1 / 2}
+    .left {grid-area:2 / 1}
+    .right{grid-area:2 / 3}
+    .down {grid-area:3 / 2}
+
+    /* Actions row */
+    .actions{
+      width:100%; max-width:540px; display:grid; grid-template-columns:1fr 1fr; gap:clamp(10px,2.6vw,14px);
+    }
+
+    @keyframes shake{
+      0%,100%{transform:translateX(0)}
+      20%{transform:translateX(-6px)}
+      40%{transform:translateX(6px)}
+      60%{transform:translateX(-4px)}
+      80%{transform:translateX(4px)}
+    }
+    .shake{animation:shake .28s linear}
+  </style>
+</head>
+<body>
+  <canvas id="matrix-canvas" aria-hidden="true"></canvas>
+
+  <main class="overlay" role="main">
+    <h1>ONBOARDING GAME</h1>
+
+    <section class="panel" aria-label="Clavier directionnel">
+      <div class="display" aria-live="polite" aria-atomic="true">
+        <div class="slot" id="s1"><span class="arrow">•</span></div>
+        <div class="slot" id="s2"><span class="arrow">•</span></div>
+        <div class="slot" id="s3"><span class="arrow">•</span></div>
+        <div class="slot" id="s4"><span class="arrow">•</span></div>
+      </div>
+
+      <div class="status" id="status" role="status"></div>
+
+      <!-- Compass pad -->
+      <div class="pad" id="pad" role="group" aria-label="Boussole directionnelle">
+        <div class="spacer"></div>
+        <button class="key up" data-dir="U" aria-label="Haut">↑</button>
+        <div class="spacer"></div>
+
+        <button class="key left" data-dir="L" aria-label="Gauche">←</button>
+        <div class="spacer"></div>
+        <button class="key right" data-dir="R" aria-label="Droite">→</button>
+
+        <div class="spacer"></div>
+        <button class="key down" data-dir="D" aria-label="Bas">↓</button>
+        <div class="spacer"></div>
+      </div>
+
+      <div class="actions">
+        <button class="key action" id="clear" type="button" aria-label="Effacer">EFFACER</button>
+        <button class="key action" id="back" type="button" aria-label="Supprimer">SUPPRIMER</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    /* ===== Matrix rain background ===== */
+    (function matrixRain(){
+      const c = document.getElementById('matrix-canvas');
+      const ctx = c.getContext('2d');
+      const glyphs = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズヅブプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロゴゾドボポ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      let drops, fontSize, columns, w, h, frameId;
+
+      const resize = () => {
+        w = c.width  = window.innerWidth;
+        h = c.height = window.innerHeight;
+        fontSize = Math.max(12, Math.floor(Math.min(w, h) / 40));
+        columns = Math.ceil(w / fontSize);
+        drops = Array(columns).fill(1 + Math.floor(Math.random() * h / fontSize));
+      };
+
+      const step = () => {
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.fillRect(0,0,w,h);
+        ctx.fillStyle = '#0f0';
+        ctx.shadowColor = '#0f0';
+        ctx.shadowBlur = 8;
+        ctx.font = `${fontSize}px monospace`;
+
+        for (let i = 0; i < columns; i++){
+          const char = glyphs.charAt(Math.floor(Math.random() * glyphs.length));
+          const x = i * fontSize;
+          const y = drops[i] * fontSize;
+          ctx.fillText(char, x, y);
+          if (y > h && Math.random() > 0.975) drops[i] = 0;
+          drops[i]++;
+        }
+        frameId = requestAnimationFrame(step);
+      };
+
+      window.addEventListener('resize', () => {
+        cancelAnimationFrame(frameId);
+        resize();
+        step();
+      });
+
+      resize(); step();
+    })();
+
+    /* ===== Direction code logic: up, down, left, right ===== */
+    (function compassCode(){
+      const REQUIRED = ['U','D','L','R']; // haut - bas - gauche - droite
+      const slots = [document.getElementById('s1'), document.getElementById('s2'), document.getElementById('s3'), document.getElementById('s4')];
+      const status = document.getElementById('status');
+      const pad = document.getElementById('pad');
+      const clearBtn = document.getElementById('clear');
+      const backBtn  = document.getElementById('back');
+
+      let buffer = [];
+      let locked = false;
+
+      function symbolFor(dir){
+        return dir==='U'?'↑':dir==='D'?'↓':dir==='L'?'←':'→';
+      }
+
+      function render(){
+        slots.forEach((s, i) => {
+          const span = s.firstElementChild;
+          if (buffer[i] !== undefined){
+            span.textContent = symbolFor(buffer[i]);
+            s.classList.add('filled');
+          } else {
+            span.textContent = '•';
+            s.classList.remove('filled');
+          }
+        });
+      }
+
+      function reset(delay=0){
+        const doReset = () => {
+          buffer = [];
+          status.textContent = '';
+          status.className = 'status';
+          render();
+          locked = false;
+          slots.forEach(s => s.style.boxShadow='inset 0 0 18px rgba(0,0,0,.45)');
+        };
+        delay ? setTimeout(doReset, delay) : doReset();
+      }
+
+      function check(){
+        const ok = REQUIRED.every((v,i)=> v === buffer[i]);
+        if (ok){
+          status.textContent = 'CORRECT';
+          status.className = 'status ok';
+          locked = true;
+          slots.forEach(s=> s.style.boxShadow = 'inset 0 0 28px rgba(17,211,110,.35)');
+        } else {
+          status.textContent = 'ERREUR';
+          status.className = 'status err';
+          const panel = document.querySelector('.panel');
+          panel.classList.remove('shake'); void panel.offsetWidth; panel.classList.add('shake');
+          reset(650);
+        }
+      }
+
+      pad.addEventListener('click', (e) => {
+        const key = e.target.closest('.key');
+        if (!key || locked) return;
+        const dir = key.getAttribute('data-dir');
+        if (!dir) return;
+        if (buffer.length < 4){
+          buffer.push(dir); render();
+          if (buffer.length === 4) check();
+        }
+      });
+
+      clearBtn.addEventListener('click', () => { if (!locked) reset(); });
+      backBtn.addEventListener('click',  () => { if (!locked) { buffer.pop(); render(); } });
+
+      // Optional keyboard support: arrows, Backspace, Escape
+      window.addEventListener('keydown', (e)=>{
+        if (locked) return;
+        const map = {ArrowUp:'U', ArrowDown:'D', ArrowLeft:'L', ArrowRight:'R'};
+        if (map[e.key]){
+          if (buffer.length < 4){
+            buffer.push(map[e.key]); render();
+            if (buffer.length === 4) check();
+          }
+        } else if (e.key === 'Backspace'){ buffer.pop(); render(); e.preventDefault(); }
+        else if (e.key === 'Escape'){ reset(); }
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>
